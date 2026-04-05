@@ -1,0 +1,86 @@
+.DS_Store
+*.zip
+__pycache__/
+
+# Image files
+*.jpg
+*.jpeg
+*.png
+*.bmp
+*.gif
+*.tiff
+*.tif
+*.svg
+*.ico
+*.webp
+*.heic
+*.heif
+*.raw
+*.nef
+*.cr2
+*.dng
+*.arw
+*.orf
+*.rw2
+*.psd
+
+# Video files
+*.mp4
+*.avi
+*.mkv
+*.mov
+*.wmv
+*.flv
+*.webm
+
+# Audio files
+*.mp3
+*.wav
+*.flac
+*.ogg
+*.aac
+*.wma
+
+# PDF and document files
+*.pdf
+*.docx
+*.pptx
+*.xlsx
+*.xlsb
+*.doc
+*.ppt
+*.xls
+*.epub
+*.mobi
+*.rtf
+
+# Archive files
+*.rar
+*.7z
+*.tar
+*.gz
+*.bz2
+
+# Font files
+*.ttf
+*.otf
+*.woff
+*.woff2
+
+# Geospatial binary files
+*.shp
+*.shx
+*.dbf
+
+# Scientific data files
+*.nc
+*.h5
+*.hdf5
+*.mat
+
+# Pickle/serialized files
+*.pkl
+
+# NEF preset directories
+NEF/
+Photoshop/

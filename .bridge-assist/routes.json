@@ -1,0 +1,45 @@
+{
+  "routed_at": "2026-04-04T22:58:52.505733",
+  "taste_file": "taste.md",
+  "threshold_override": null,
+  "total_images_routed": 1,
+  "total_assignments": 4,
+  "routes": {
+    "_MT88026.NEF": [
+      {
+        "channel": "soft-warms",
+        "confidence": 0.82,
+        "symlink": "/sessions/nifty-sweet-hopper/mnt/photos/bridge-assist/.bridge-assist/routes/soft-warms/_MT88026.NEF",
+        "derivatives": [
+          "/sessions/nifty-sweet-hopper/mnt/photos/bridge-assist/.bridge-assist/routes/soft-warms/_MT88026_warm_proof_srgb.jpg",
+          "/sessions/nifty-sweet-hopper/mnt/photos/bridge-assist/.bridge-assist/routes/soft-warms/_MT88026_warm_proof.tif"
+        ]
+      },
+      {
+        "channel": "soft-greens",
+        "confidence": 0.78,
+        "symlink": "/sessions/nifty-sweet-hopper/mnt/photos/bridge-assist/.bridge-assist/routes/soft-greens/_MT88026.NEF",
+        "derivatives": [
+          "/sessions/nifty-sweet-hopper/mnt/photos/bridge-assist/.bridge-assist/routes/soft-greens/_MT88026_green_proof.jpg"
+        ]
+      },
+      {
+        "channel": "composite-base",
+        "confidence": 0.71,
+        "symlink": "/sessions/nifty-sweet-hopper/mnt/photos/bridge-assist/.bridge-assist/routes/composite-base/_MT88026.NEF",
+        "derivatives": [
+          "/sessions/nifty-sweet-hopper/mnt/photos/bridge-assist/.bridge-assist/routes/composite-base/_MT88026_composite.tiff"
+        ]
+      },
+      {
+        "channel": "instagram",
+        "confidence": 0.73,
+        "symlink": "/sessions/nifty-sweet-hopper/mnt/photos/bridge-assist/.bridge-assist/routes/instagram/_MT88026.NEF",
+        "derivatives": [
+          "/sessions/nifty-sweet-hopper/mnt/photos/bridge-assist/.bridge-assist/routes/instagram/_MT88026_ig_1080sq.jpg",
+          "/sessions/nifty-sweet-hopper/mnt/photos/bridge-assist/.bridge-assist/routes/instagram/_MT88026_ig_1080x1350.jpg"
+        ]
+      }
+    ]
+  }
+}

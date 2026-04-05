@@ -59,10 +59,30 @@ Score every channel listed above. Be calibrated:
 - Below 0.5: Probably not"""
 
 
+MAX_IMAGE_DIMENSION = 2048
+MAX_BASE64_BYTES = 4_500_000  # Stay under 5MB API limit after encoding overhead
+
+
 def encode_image_base64(image_path: Path) -> str:
-    """Read an image file and return base64-encoded string."""
-    with open(image_path, "rb") as f:
-        return base64.b64encode(f.read()).decode("utf-8")
+    """Read an image, resize if needed for API limits, return base64-encoded string."""
+    from PIL import Image
+    import io
+
+    with Image.open(image_path) as img:
+        w, h = img.size
+        if max(w, h) > MAX_IMAGE_DIMENSION:
+            img.thumbnail((MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION), Image.LANCZOS)
+
+        buf = io.BytesIO()
+        quality = 85
+        img.save(buf, format="JPEG", quality=quality)
+
+        while buf.tell() > MAX_BASE64_BYTES and quality > 40:
+            quality -= 10
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=quality)
+
+        return base64.b64encode(buf.getvalue()).decode("utf-8")
 
 
 def parse_scores_response(response_text: str, expected_channels: list[str]) -> list[dict]:
@@ -210,7 +230,7 @@ class OpenAIVisionAdapter(VisionAdapter):
                             "type": "image_url",
                             "image_url": {
                                 "url": f"data:image/jpeg;base64,{image_data}",
-                                "detail": "low",  # Cost optimization
+                                "detail": "high",
                             },
                         },
                         {

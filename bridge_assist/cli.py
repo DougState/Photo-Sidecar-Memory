@@ -13,14 +13,13 @@ WORKING_DIR_NAME = ".bridge-assist"
 def _resolve_working_dir(source_dir: str | None = None) -> Path:
     """Resolve the .bridge-assist working directory.
 
-    If source_dir is given, use source_dir/.bridge-assist.
-    Otherwise, look for .bridge-assist in cwd or parent dirs.
+    Always uses cwd/.bridge-assist. The source_dir argument is accepted
+    for backward compatibility but ignored for path resolution — the
+    working directory is always relative to where you run the command.
     """
-    if source_dir:
-        return Path(source_dir).resolve() / WORKING_DIR_NAME
+    cwd = Path.cwd()
 
     # Walk up from cwd looking for existing .bridge-assist
-    cwd = Path.cwd()
     for parent in [cwd] + list(cwd.parents):
         candidate = parent / WORKING_DIR_NAME
         if candidate.is_dir():

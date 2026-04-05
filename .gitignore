@@ -1,6 +1,10 @@
 .DS_Store
 *.zip
 __pycache__/
+.venv/
+*.egg-info/
+.bridge-assist/
+api-key-rotation.md
 
 # Image files
 *.jpg

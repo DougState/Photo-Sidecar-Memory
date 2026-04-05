@@ -273,29 +273,29 @@ def score_all(
     api_key: str | None = None,
     only_unscored: bool = False,
     retry_on_failure: bool = True,
+    manifest_name: str = "manifest.json",
+    scores_name: str = "scores.json",
 ) -> dict:
     """Score all ingested images against taste.md channels.
 
-    Reads manifest.json from working_dir, scores each image via the vision API,
-    and writes scores.json to working_dir.
+    Reads manifest from working_dir, scores each image via the vision API,
+    and writes scores to working_dir.
     """
     working_dir = Path(working_dir).resolve()
-    manifest_path = working_dir / "manifest.json"
+    manifest_path = working_dir / manifest_name
 
     if not manifest_path.exists():
         raise FileNotFoundError(
-            f"No manifest.json found in {working_dir}. Run 'bridge-assist ingest' first."
+            f"No {manifest_name} found in {working_dir}. Run 'bridge-assist ingest' first."
         )
 
     with open(manifest_path) as f:
         manifest = json.load(f)
 
-    # Parse taste profile
     profile = parse_taste_file(taste_path)
     channel_names = profile.channel_names()
 
-    # Load existing scores if only_unscored
-    scores_path = working_dir / "scores.json"
+    scores_path = working_dir / scores_name
     existing_scores = {}
     if only_unscored and scores_path.exists():
         with open(scores_path) as f:

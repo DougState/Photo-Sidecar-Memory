@@ -11,16 +11,25 @@ def generate_report(
     working_dir: Path,
     taste_path: Path,
     output_path: Path | None = None,
+    manifest_name: str = "manifest.json",
+    scores_name: str = "scores.json",
+    routes_name: str = "routes.json",
+    report_name: str = "sort-report.md",
 ) -> str:
     """Generate a markdown report from scoring and routing results.
 
-    Reads manifest.json, scores.json, and optionally routes.json.
-    Outputs a markdown file with inline thumbnail references and score tables.
+    Two sections:
+    1. Channel Summary table (shoot overview)
+    2. Per-Channel sections with images sorted by confidence (contact sheet style)
+
+    At scale (hundreds of images), the per-channel layout lets photographers
+    review routing decisions channel by channel instead of scrolling through
+    every image individually.
     """
     working_dir = Path(working_dir).resolve()
-    manifest_path = working_dir / "manifest.json"
-    scores_path = working_dir / "scores.json"
-    routes_path = working_dir / "routes.json"
+    manifest_path = working_dir / manifest_name
+    scores_path = working_dir / scores_name
+    routes_path = working_dir / routes_name
 
     if not manifest_path.exists():
         raise FileNotFoundError("No manifest.json found. Run 'bridge-assist ingest' first.")
@@ -42,8 +51,10 @@ def generate_report(
             routes_data = json.load(f)
 
     profile = parse_taste_file(taste_path)
+    files = manifest.get("files", {})
+    scores = scores_data.get("scores", {}) if has_scores else {}
+    routes = routes_data.get("routes", {}) if has_routes else {}
 
-    # Build report
     lines = []
     lines.append("# Bridge-Assist Sort Report")
     lines.append("")
@@ -56,90 +67,65 @@ def generate_report(
         lines.append(f"Scored: {scores_data.get('total_scored', 0)}")
 
     if has_routes:
-        lines.append(f"Routed: {routes_data.get('total_images_routed', 0)} images -> {routes_data.get('total_assignments', 0)} assignments")
+        lines.append(
+            f"Routed: {routes_data.get('total_images_routed', 0)} images "
+            f"-> {routes_data.get('total_assignments', 0)} assignments"
+        )
 
     lines.append("")
 
-    # Channel summary
+    # -- Channel Summary table --
     if has_scores:
         lines.append("## Channel Summary")
         lines.append("")
 
-        channel_counts = {ch.name: 0 for ch in profile.channels}
-        channel_avg = {ch.name: [] for ch in profile.channels}
+        channel_images: dict[str, list[dict]] = {ch.name: [] for ch in profile.channels}
 
-        for filename, file_scores in scores_data.get("scores", {}).items():
+        for filename, file_scores in scores.items():
             for entry in file_scores.get("scores", []):
-                ch = entry["channel"]
-                conf = entry["confidence"]
-                if ch in channel_avg:
-                    channel_avg[ch].append(conf)
-                    ch_def = profile.get_channel(ch)
-                    thresh = ch_def.confidence_threshold if ch_def else 0.5
-                    if conf >= thresh:
-                        channel_counts[ch] += 1
+                ch_name = entry["channel"]
+                if ch_name in channel_images:
+                    channel_images[ch_name].append({
+                        "file": filename,
+                        "confidence": entry["confidence"],
+                        "reasoning": entry.get("reasoning", ""),
+                    })
 
-        lines.append("| Channel | Above Threshold | Avg Confidence | Threshold |")
-        lines.append("|---------|----------------|----------------|-----------|")
+        lines.append("| Channel | Routed | Total Scored | Avg Confidence | Threshold |")
+        lines.append("|---------|--------|-------------|----------------|-----------|")
         for ch in profile.channels:
-            avg = sum(channel_avg[ch.name]) / len(channel_avg[ch.name]) if channel_avg[ch.name] else 0
+            imgs = channel_images[ch.name]
+            avg = sum(i["confidence"] for i in imgs) / len(imgs) if imgs else 0
+            above = sum(1 for i in imgs if i["confidence"] >= ch.confidence_threshold)
             lines.append(
-                f"| {ch.name} | {channel_counts[ch.name]} | {avg:.2f} | {ch.confidence_threshold} |"
+                f"| {ch.name} | {above} | {len(imgs)} | {avg:.2f} | {ch.confidence_threshold} |"
             )
         lines.append("")
 
-    # Per-image details
-    if has_scores:
-        lines.append("## Image Scores")
-        lines.append("")
+        # -- Per-Channel sections --
+        for ch in profile.channels:
+            imgs = sorted(channel_images[ch.name], key=lambda x: x["confidence"], reverse=True)
+            above = [i for i in imgs if i["confidence"] >= ch.confidence_threshold]
+            below = [i for i in imgs if i["confidence"] < ch.confidence_threshold]
 
-        files = manifest.get("files", {})
-        scores = scores_data.get("scores", {})
-        routes = routes_data.get("routes", {}) if has_routes else {}
-
-        for filename in sorted(files.keys()):
-            file_info = files[filename]
-            preview_path = file_info.get("preview_path", "")
-            exif = file_info.get("exif", {})
-
-            lines.append(f"### {filename}")
+            lines.append(f"## {ch.name}")
+            lines.append("")
+            lines.append(f"*{ch.intent}*")
+            lines.append(f"Threshold: {ch.confidence_threshold} | "
+                         f"Routed: {len(above)} | Rejected: {len(below)}")
             lines.append("")
 
-            # Thumbnail reference (relative path)
-            preview_rel = Path(preview_path).name if preview_path else ""
-            if preview_rel:
-                lines.append(f"![{filename}](previews/{preview_rel})")
+            if above:
+                lines.append("### Routed")
                 lines.append("")
+                _write_image_table(lines, above, files, routes, ch.name, routed=True)
 
-            # EXIF summary
-            lines.append(
-                f"*{exif.get('camera_model', '?')} | "
-                f"{exif.get('focal_length', '?')}mm | "
-                f"f/{exif.get('aperture', '?')} | "
-                f"ISO {exif.get('iso', '?')} | "
-                f"{exif.get('shutter_speed', '?')}s*"
-            )
-            lines.append("")
-
-            # Scores table
-            if filename in scores:
-                file_scores = scores[filename].get("scores", [])
-                lines.append("| Channel | Confidence | Routed | Reasoning |")
-                lines.append("|---------|-----------|--------|-----------|")
-
-                file_routes = routes.get(filename, [])
-                routed_channels = {r["channel"] for r in file_routes}
-
-                for entry in sorted(file_scores, key=lambda x: x["confidence"], reverse=True):
-                    routed = "Yes" if entry["channel"] in routed_channels else ""
-                    conf_bar = _confidence_bar(entry["confidence"])
-                    reasoning = entry.get("reasoning", "")[:80]
-                    lines.append(
-                        f"| {entry['channel']} | {conf_bar} {entry['confidence']:.2f} | {routed} | {reasoning} |"
-                    )
+            if below:
+                lines.append("### Below Threshold")
                 lines.append("")
+                _write_image_table(lines, below, files, routes, ch.name, routed=False)
 
-    # Skipped files
+    # -- Skipped files --
     skipped = manifest.get("skipped", [])
     if skipped:
         lines.append("## Skipped Files")
@@ -148,7 +134,7 @@ def generate_report(
             lines.append(f"- **{s['file']}**: {s['reason']}")
         lines.append("")
 
-    # Errors
+    # -- Scoring errors --
     if has_scores:
         errors = scores_data.get("errors", [])
         if errors:
@@ -160,9 +146,8 @@ def generate_report(
 
     report_text = "\n".join(lines)
 
-    # Write to file
     if output_path is None:
-        output_path = working_dir / "sort-report.md"
+        output_path = working_dir / report_name
     else:
         output_path = Path(output_path)
 
@@ -172,7 +157,44 @@ def generate_report(
     return report_text
 
 
+def _write_image_table(
+    lines: list[str],
+    images: list[dict],
+    manifest_files: dict,
+    routes: dict,
+    channel_name: str,
+    routed: bool,
+) -> None:
+    """Write a table of images for a single channel section."""
+    lines.append("| | File | Confidence | EXIF | Reasoning |")
+    lines.append("|---|------|-----------|------|-----------|")
+
+    for img in images:
+        filename = img["file"]
+        file_info = manifest_files.get(filename, {})
+        preview_path = file_info.get("preview_path", "")
+        exif = file_info.get("exif", {})
+
+        preview_rel = Path(preview_path).name if preview_path else ""
+        thumb = f"![](previews/{preview_rel})" if preview_rel else ""
+
+        exif_str = (
+            f"{exif.get('focal_length', '?')}mm "
+            f"f/{exif.get('aperture', '?')} "
+            f"ISO {exif.get('iso', '?')}"
+        )
+
+        conf_bar = _confidence_bar(img["confidence"])
+        reasoning = img["reasoning"]
+
+        lines.append(
+            f"| {thumb} | {filename} | {conf_bar} {img['confidence']:.2f} | {exif_str} | {reasoning} |"
+        )
+
+    lines.append("")
+
+
 def _confidence_bar(conf: float, width: int = 10) -> str:
     """Generate a simple text confidence bar."""
     filled = round(conf * width)
-    return "█" * filled + "░" * (width - filled)
+    return "\u2588" * filled + "\u2591" * (width - filled)

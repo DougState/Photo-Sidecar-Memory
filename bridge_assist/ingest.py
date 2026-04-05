@@ -88,12 +88,12 @@ def _parse_rational(value) -> str:
     return str(value)
 
 
-def ingest_folder(source_dir: Path, working_dir: Path) -> dict:
+def ingest_folder(source_dir: Path, working_dir: Path, manifest_name: str = "manifest.json") -> dict:
     """Ingest all NEF files from source_dir.
 
     Creates:
       - working_dir/previews/  (extracted JPEG previews)
-      - working_dir/manifest.json  (EXIF data + file metadata)
+      - working_dir/{manifest_name}  (EXIF data + file metadata)
 
     Returns the manifest dict.
     """
@@ -164,7 +164,7 @@ def ingest_folder(source_dir: Path, working_dir: Path) -> dict:
         print("OK")
 
     # Write manifest
-    manifest_path = working_dir / "manifest.json"
+    manifest_path = working_dir / manifest_name
     with open(manifest_path, "w") as f:
         json.dump(manifest, f, indent=2, default=str)
 

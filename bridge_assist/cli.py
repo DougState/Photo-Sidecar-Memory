@@ -1,12 +1,12 @@
 """Click-based CLI entry point for bridge-assist."""
 
+import re
 import sys
 from pathlib import Path
 
 import click
 
 
-# Default working directory name (created inside the source folder)
 WORKING_DIR_NAME = ".bridge-assist"
 
 
@@ -19,13 +19,11 @@ def _resolve_working_dir(source_dir: str | None = None) -> Path:
     """
     cwd = Path.cwd()
 
-    # Walk up from cwd looking for existing .bridge-assist
     for parent in [cwd] + list(cwd.parents):
         candidate = parent / WORKING_DIR_NAME
         if candidate.is_dir():
             return candidate
 
-    # Default: cwd/.bridge-assist
     return cwd / WORKING_DIR_NAME
 
 
@@ -38,7 +36,6 @@ def _resolve_taste(taste: str | None) -> Path:
             sys.exit(1)
         return p
 
-    # Search cwd and parents for taste.md
     cwd = Path.cwd()
     for parent in [cwd] + list(cwd.parents):
         candidate = parent / "taste.md"
@@ -47,6 +44,21 @@ def _resolve_taste(taste: str | None) -> Path:
 
     click.echo("Error: No taste.md found. Specify with --taste or create one in your project.", err=True)
     sys.exit(1)
+
+
+def _slugify(name: str) -> str:
+    """Convert a folder name to a clean tag slug."""
+    slug = name.lower().strip()
+    slug = re.sub(r"[^a-z0-9]+", "-", slug)
+    return slug.strip("-")
+
+
+def tagged_filename(base: str, tag: str | None) -> str:
+    """Return 'base-tag.ext' if tag is set, otherwise 'base.ext'."""
+    if not tag:
+        return base
+    stem, ext = base.rsplit(".", 1)
+    return f"{stem}-{tag}.{ext}"
 
 
 @click.group()
@@ -62,13 +74,20 @@ def cli():
 
 @cli.command()
 @click.argument("source_dir", type=click.Path(exists=True, file_okay=False))
-def ingest(source_dir: str):
+@click.option("--tag", default=None, help="Tag for this run. Auto-derived from folder name if omitted.")
+def ingest(source_dir: str, tag: str | None):
     """Extract previews and EXIF metadata from a folder of NEF files."""
     from .ingest import ingest_folder
 
+    if tag is None:
+        tag = _slugify(Path(source_dir).resolve().name)
+        click.echo(f"Auto-tag: {tag}")
+
     working_dir = _resolve_working_dir(source_dir)
     click.echo(f"Working directory: {working_dir}")
-    ingest_folder(Path(source_dir), working_dir)
+    manifest_name = tagged_filename("manifest.json", tag)
+    ingest_folder(Path(source_dir), working_dir, manifest_name=manifest_name)
+    click.echo(f"Tag: {tag} (use --tag {tag} for score/route/report)")
 
 
 @cli.command()
@@ -76,7 +95,8 @@ def ingest(source_dir: str):
 @click.option("--backend", type=click.Choice(["claude", "openai"]), default="claude", help="Vision API backend")
 @click.option("--api-key", envvar="BRIDGE_ASSIST_API_KEY", default=None, help="API key (or set env var)")
 @click.option("--only-unscored", is_flag=True, help="Skip already-scored images")
-def score(taste: str | None, backend: str, api_key: str | None, only_unscored: bool):
+@click.option("--tag", default=None, help="Run tag (matches ingest tag)")
+def score(taste: str | None, backend: str, api_key: str | None, only_unscored: bool, tag: str | None):
     """Score images against taste.md channels via vision API."""
     from .score import score_all
 
@@ -84,7 +104,16 @@ def score(taste: str | None, backend: str, api_key: str | None, only_unscored: b
     working_dir = _resolve_working_dir()
     click.echo(f"Taste: {taste_path}")
     click.echo(f"Working directory: {working_dir}")
-    score_all(working_dir, taste_path, backend=backend, api_key=api_key, only_unscored=only_unscored)
+    if tag:
+        click.echo(f"Tag: {tag}")
+
+    manifest_name = tagged_filename("manifest.json", tag)
+    scores_name = tagged_filename("scores.json", tag)
+    score_all(
+        working_dir, taste_path,
+        backend=backend, api_key=api_key, only_unscored=only_unscored,
+        manifest_name=manifest_name, scores_name=scores_name,
+    )
 
 
 @cli.command()
@@ -92,7 +121,8 @@ def score(taste: str | None, backend: str, api_key: str | None, only_unscored: b
 @click.option("--threshold", type=float, default=None, help="Override all channel thresholds")
 @click.option("--dry-run", is_flag=True, help="Show routing plan without creating files")
 @click.option("--clean", is_flag=True, help="Remove previous routing outputs first")
-def route(taste: str | None, threshold: float | None, dry_run: bool, clean: bool):
+@click.option("--tag", default=None, help="Run tag (matches ingest/score tag)")
+def route(taste: str | None, threshold: float | None, dry_run: bool, clean: bool, tag: str | None):
     """Route scored images into channel directories with symlinks and derivatives."""
     from .route import route_all
 
@@ -100,20 +130,43 @@ def route(taste: str | None, threshold: float | None, dry_run: bool, clean: bool
     working_dir = _resolve_working_dir()
     click.echo(f"Taste: {taste_path}")
     click.echo(f"Working directory: {working_dir}")
-    route_all(working_dir, taste_path, threshold_override=threshold, dry_run=dry_run, clean=clean)
+    if tag:
+        click.echo(f"Tag: {tag}")
+
+    scores_name = tagged_filename("scores.json", tag)
+    manifest_name = tagged_filename("manifest.json", tag)
+    routes_name = tagged_filename("routes.json", tag)
+    route_all(
+        working_dir, taste_path,
+        threshold_override=threshold, dry_run=dry_run, clean=clean,
+        scores_name=scores_name, manifest_name=manifest_name, routes_name=routes_name,
+    )
 
 
 @cli.command()
 @click.option("--taste", type=click.Path(), default=None, help="Path to taste.md")
 @click.option("--output", "-o", type=click.Path(), default=None, help="Output markdown file path")
-def report(taste: str | None, output: str | None):
+@click.option("--tag", default=None, help="Run tag (matches ingest/score/route tag)")
+def report(taste: str | None, output: str | None, tag: str | None):
     """Generate a markdown report with thumbnails and scores."""
     from .report import generate_report
 
     taste_path = _resolve_taste(taste)
     working_dir = _resolve_working_dir()
+    if tag:
+        click.echo(f"Tag: {tag}")
+
     output_path = Path(output) if output else None
-    generate_report(working_dir, taste_path, output_path=output_path)
+    manifest_name = tagged_filename("manifest.json", tag)
+    scores_name = tagged_filename("scores.json", tag)
+    routes_name = tagged_filename("routes.json", tag)
+    report_name = tagged_filename("sort-report.md", tag)
+    generate_report(
+        working_dir, taste_path,
+        output_path=output_path,
+        manifest_name=manifest_name, scores_name=scores_name,
+        routes_name=routes_name, report_name=report_name,
+    )
 
 
 @cli.command()

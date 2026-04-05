@@ -209,24 +209,27 @@ def route_all(
     threshold_override: float | None = None,
     dry_run: bool = False,
     clean: bool = False,
+    scores_name: str = "scores.json",
+    manifest_name: str = "manifest.json",
+    routes_name: str = "routes.json",
 ) -> dict:
     """Route scored images into channel directories with symlinks and derivatives.
 
-    Reads scores.json and manifest.json from working_dir.
+    Reads scores and manifest from working_dir.
     Creates routes/ subdirectories with symlinks to original NEFs
     and ImageMagick-derived outputs from preview JPEGs.
     """
     working_dir = Path(working_dir).resolve()
-    scores_path = working_dir / "scores.json"
-    manifest_path = working_dir / "manifest.json"
+    scores_path = working_dir / scores_name
+    manifest_path = working_dir / manifest_name
 
     if not scores_path.exists():
         raise FileNotFoundError(
-            f"No scores.json found. Run 'bridge-assist score' first."
+            f"No {scores_name} found. Run 'bridge-assist score' first."
         )
     if not manifest_path.exists():
         raise FileNotFoundError(
-            f"No manifest.json found. Run 'bridge-assist ingest' first."
+            f"No {manifest_name} found. Run 'bridge-assist ingest' first."
         )
 
     with open(scores_path) as f:
@@ -345,7 +348,7 @@ def route_all(
         "routes": route_results,
     }
 
-    routes_json_path = working_dir / "routes.json"
+    routes_json_path = working_dir / routes_name
     with open(routes_json_path, "w") as f:
         json.dump(route_data, f, indent=2)
 

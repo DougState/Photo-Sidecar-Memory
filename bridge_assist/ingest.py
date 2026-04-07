@@ -1,14 +1,13 @@
 """Ingest module: extract JPEG previews and EXIF metadata from NEF files."""
 
 import json
-import os
-import struct
+import shutil
+import subprocess
 from datetime import datetime
 from pathlib import Path
 
 import rawpy
 from PIL import Image
-from PIL.ExifTags import TAGS
 
 
 def extract_preview(nef_path: Path, output_dir: Path) -> Path | None:
@@ -26,7 +25,6 @@ def extract_preview(nef_path: Path, output_dir: Path) -> Path | None:
                     f.write(thumb.data)
                 return preview_path
             elif thumb.format == rawpy.ThumbFormat.BITMAP:
-                # Fallback: convert bitmap thumbnail to JPEG
                 preview_path = output_dir / f"{nef_path.stem}_preview.jpg"
                 img = Image.fromarray(thumb.data)
                 img.save(str(preview_path), "JPEG", quality=92)
@@ -36,12 +34,53 @@ def extract_preview(nef_path: Path, output_dir: Path) -> Path | None:
         return None
 
 
-def read_exif(nef_path: Path) -> dict:
-    """Read EXIF metadata from a NEF file using Pillow.
+_HAS_EXIFTOOL: bool | None = None
 
-    Returns a dict with human-readable tag names. Falls back gracefully
-    if EXIF data is missing or unreadable.
+
+def _check_exiftool() -> bool:
+    """Check once whether exiftool is available on PATH."""
+    global _HAS_EXIFTOOL
+    if _HAS_EXIFTOOL is None:
+        _HAS_EXIFTOOL = shutil.which("exiftool") is not None
+    return _HAS_EXIFTOOL
+
+
+def read_exif(nef_path: Path) -> dict:
+    """Read EXIF metadata from a NEF file.
+
+    Uses exiftool (gold standard) when available, with Pillow as fallback.
+    exiftool reads full Makernote data from NEFs including lens ID, accurate
+    dimensions, and all shooting parameters. Pillow only sees the 160x120
+    embedded thumbnail EXIF, which misses most D800 fields.
     """
+    if _check_exiftool():
+        return _read_exif_exiftool(nef_path)
+    return _read_exif_pillow(nef_path)
+
+
+def _read_exif_exiftool(nef_path: Path) -> dict:
+    """Read EXIF via exiftool subprocess.
+
+    Runs without -n so LensID resolves to a human-readable lens name.
+    Uses -j for JSON output. Numeric fields (FNumber, ISO, etc.) come
+    back as strings like "f/11.0" which parse_exif_for_scoring handles.
+    """
+    try:
+        result = subprocess.run(
+            ["exiftool", "-j", str(nef_path)],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode == 0:
+            return json.loads(result.stdout)[0]
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, IndexError) as e:
+        print(f"  WARNING: exiftool failed for {nef_path.name}: {e}")
+    return _read_exif_pillow(nef_path)
+
+
+def _read_exif_pillow(nef_path: Path) -> dict:
+    """Fallback EXIF reader using Pillow. Limited for RAW files."""
+    from PIL.ExifTags import TAGS
+
     exif_data = {}
     try:
         with Image.open(nef_path) as img:
@@ -49,7 +88,6 @@ def read_exif(nef_path: Path) -> dict:
             if raw_exif:
                 for tag_id, value in raw_exif.items():
                     tag_name = TAGS.get(tag_id, str(tag_id))
-                    # Convert bytes and other non-serializable types
                     if isinstance(value, bytes):
                         try:
                             value = value.decode("utf-8", errors="replace")
@@ -60,32 +98,52 @@ def read_exif(nef_path: Path) -> dict:
                     exif_data[tag_name] = value
     except Exception as e:
         print(f"  WARNING: Could not read EXIF from {nef_path.name}: {e}")
-
     return exif_data
 
 
 def parse_exif_for_scoring(exif: dict) -> dict:
-    """Extract the specific EXIF fields needed for vision API scoring prompts."""
+    """Extract the specific EXIF fields needed for vision API scoring prompts.
+
+    Handles both exiftool keys (human-readable strings) and Pillow keys.
+    exiftool without -n returns values like "11.0" (aperture), "1/200" (shutter),
+    "48.0 mm" (focal length). We normalize these for the scoring prompt.
+    """
+    focal = exif.get("FocalLength", "Unknown")
+    if isinstance(focal, (int, float)):
+        focal = f"{focal:.0f}"
+    elif isinstance(focal, str) and focal != "Unknown":
+        focal = focal.replace(" mm", "").strip()
+
+    aperture = exif.get("FNumber", exif.get("Aperture", "Unknown"))
+    if isinstance(aperture, (int, float)):
+        aperture = f"{aperture:.1f}"
+
+    shutter = exif.get("ExposureTime", exif.get("ShutterSpeed", "Unknown"))
+    if isinstance(shutter, (int, float)):
+        if shutter < 1:
+            denom = round(1 / shutter)
+            shutter = f"1/{denom}"
+        else:
+            shutter = f"{shutter:.1f}s"
+
+    iso = exif.get("ISO", exif.get("ISOSpeedRatings",
+          exif.get("PhotographicSensitivity", "Unknown")))
+
+    lens = exif.get("LensID", exif.get("LensModel",
+           exif.get("LensInfo", "Unknown")))
+
     return {
         "camera_model": exif.get("Model", "Unknown"),
-        "lens": exif.get("LensModel", exif.get("LensInfo", "Unknown")),
-        "focal_length": _parse_rational(exif.get("FocalLength", "Unknown")),
-        "aperture": _parse_rational(exif.get("FNumber", "Unknown")),
-        "iso": exif.get("ISOSpeedRatings", exif.get("PhotographicSensitivity", "Unknown")),
-        "shutter_speed": exif.get("ExposureTime", "Unknown"),
+        "lens": str(lens) if lens else "Unknown",
+        "focal_length": str(focal),
+        "aperture": str(aperture),
+        "iso": str(iso),
+        "shutter_speed": str(shutter),
         "date_taken": exif.get("DateTimeOriginal", exif.get("DateTime", "Unknown")),
         "image_width": exif.get("ImageWidth", exif.get("ExifImageWidth", "Unknown")),
-        "image_height": exif.get("ImageLength", exif.get("ExifImageHeight", "Unknown")),
+        "image_height": exif.get("ImageHeight", exif.get("ExifImageHeight",
+                        exif.get("ImageLength", "Unknown"))),
     }
-
-
-def _parse_rational(value) -> str:
-    """Convert EXIF rational values to readable strings."""
-    if isinstance(value, (int, float)):
-        return str(value)
-    if isinstance(value, str) and value != "Unknown":
-        return value
-    return str(value)
 
 
 def ingest_folder(source_dir: Path, working_dir: Path, manifest_name: str = "manifest.json") -> dict:

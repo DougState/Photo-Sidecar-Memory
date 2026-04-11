@@ -170,6 +170,57 @@ def report(taste: str | None, output: str | None, tag: str | None):
 
 
 @cli.command()
+@click.option("--tag", default=None, help="Run tag (matches ingest/score tag)")
+@click.option("--dry-run", is_flag=True, help="Show what would be written without writing")
+@click.option("--clean", is_flag=True, help="Remove existing .xmp sidecars before writing")
+def xmp(tag: str | None, dry_run: bool, clean: bool):
+    """Write XMP sidecar files so Adobe Bridge shows AI scores.
+
+    Places a .xmp file next to each NEF in the source directory.
+    Bridge reads these automatically: star ratings from confidence,
+    color labels from primary channel, keywords for filtering.
+    """
+    from .xmp import write_xmp_sidecars
+
+    working_dir = _resolve_working_dir()
+    scores_path = working_dir / tagged_filename("scores.json", tag)
+    manifest_path = working_dir / tagged_filename("manifest.json", tag)
+
+    if not scores_path.exists():
+        click.echo(f"Error: scores file not found: {scores_path}", err=True)
+        click.echo("Run 'bridge-assist score' first.", err=True)
+        sys.exit(1)
+    if not manifest_path.exists():
+        click.echo(f"Error: manifest not found: {manifest_path}", err=True)
+        sys.exit(1)
+
+    click.echo(f"Scores: {scores_path}")
+    click.echo(f"Manifest: {manifest_path}")
+    if dry_run:
+        click.echo("Mode: DRY RUN")
+
+    result = write_xmp_sidecars(
+        scores_path, manifest_path,
+        dry_run=dry_run, clean=clean,
+    )
+
+    click.echo(f"\nSource: {result['source_dir']}")
+    click.echo(f"Written: {result['written']} XMP sidecars")
+    if result['skipped']:
+        click.echo(f"Skipped: {result['skipped']} (no scores)")
+    if result['cleaned']:
+        click.echo(f"Cleaned: {result['cleaned']} old sidecars")
+    if result['errors']:
+        click.echo(f"Errors: {len(result['errors'])}")
+        for err in result['errors']:
+            click.echo(f"  - {err}")
+
+    if not dry_run and result['written'] > 0:
+        click.echo("\nOpen Adobe Bridge and navigate to the source folder.")
+        click.echo("Stars, labels, and keywords should appear automatically.")
+
+
+@cli.command()
 @click.option("--taste", type=click.Path(), default=None, help="Path to taste.md")
 def validate(taste: str | None):
     """Validate a taste.md file for required fields and structure."""

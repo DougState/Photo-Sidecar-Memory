@@ -12,13 +12,14 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 CHANNEL_TO_LABEL = {
-    "soft-warms": "Red",
-    "soft-greens": "Green",
-    "composite-base": "Blue",
-    "elimstat-product": "Yellow",
-    "bw-monochrome": "Purple",
-    "instagram": "Second",
+    "soft-warms": "soft-warms",
+    "soft-greens": "soft-greens",
+    "composite-base": "composite-base",
+    "bw-monochrome": "bw-monochrome",
+    "instagram": "instagram",
 }
+
+SKIP_CHANNELS = {"elimstat-product"}
 
 XMP_TEMPLATE = """\
 <?xpacket begin="\ufeff" id="W5M0MpCehiHzreSzNTczkc9d"?>
@@ -56,6 +57,11 @@ def confidence_to_stars(confidence: float) -> int:
     return 1
 
 
+def _filter_scores(scores: list[dict]) -> list[dict]:
+    """Remove channels that don't belong in Bridge output."""
+    return [s for s in scores if s["channel"] not in SKIP_CHANNELS]
+
+
 def build_keywords(scores: list[dict], backend: str | None = None) -> list[str]:
     """Build dc:subject keyword list from channel scores.
 
@@ -70,6 +76,7 @@ def build_keywords(scores: list[dict], backend: str | None = None) -> list[str]:
     if backend:
         keywords.append(f"ba:backend:{backend}")
 
+    scores = _filter_scores(scores)
     if not scores:
         return keywords
 
@@ -91,10 +98,11 @@ def generate_xmp(
     backend: str | None = None,
 ) -> str:
     """Generate XMP sidecar XML content for one image."""
-    if not scores:
+    filtered = _filter_scores(scores)
+    if not filtered:
         return _render_xmp(rating=0, label="", keywords=["bridge-assist"])
 
-    top = max(scores, key=lambda s: s["confidence"])
+    top = max(filtered, key=lambda s: s["confidence"])
     rating = confidence_to_stars(top["confidence"])
     label = CHANNEL_TO_LABEL.get(top["channel"], "")
     keywords = build_keywords(scores, backend=backend)

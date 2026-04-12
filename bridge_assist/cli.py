@@ -239,6 +239,237 @@ def validate(taste: str | None):
         click.echo(f"  Channels: {', '.join(_get_channel_names(taste_path))}")
 
 
+# ---------------------------------------------------------------------------
+# Taste Engine (V2) commands
+# ---------------------------------------------------------------------------
+
+@cli.command("record")
+@click.argument("processed_file", type=click.Path(exists=True, dir_okay=False))
+@click.option("--tag", default=None, help="Run tag (matches ingest/score tag)")
+def record_feedback(processed_file: str, tag: str | None):
+    """Record feedback for a processed file (PSD/TIFF).
+
+    Matches the file back to its source NEF, infers which channel the
+    output belongs to, and records the result in the feedback database.
+    """
+    from .matcher import load_manifest, load_scores, match_to_nef, get_original_scores
+    from .inferrer import infer_channel
+    from .feedback_db import FeedbackDB
+
+    working_dir = _resolve_working_dir()
+    manifest_path = working_dir / tagged_filename("manifest.json", tag)
+    scores_path = working_dir / tagged_filename("scores.json", tag)
+
+    if not manifest_path.exists():
+        click.echo(f"Error: manifest not found: {manifest_path}", err=True)
+        sys.exit(1)
+    if not scores_path.exists():
+        click.echo(f"Error: scores not found: {scores_path}", err=True)
+        sys.exit(1)
+
+    manifest = load_manifest(manifest_path)
+    scores_data = load_scores(scores_path)
+    processed_path = Path(processed_file).resolve()
+
+    click.echo(f"File: {processed_path.name}")
+
+    match = match_to_nef(processed_path, manifest)
+    if match.nef_filename:
+        click.echo(f"Matched: {match.nef_filename} ({match.match_method}, {match.confidence:.0%})")
+    else:
+        click.echo(f"No NEF match found ({match.match_method})")
+
+    original_scores = []
+    if match.nef_filename:
+        original_scores = get_original_scores(match.nef_filename, scores_data)
+        if original_scores:
+            top = max(original_scores, key=lambda s: s["confidence"])
+            click.echo(f"AI scored: {top['channel']} ({top['confidence']:.0%})")
+
+    inference = infer_channel(processed_path, original_scores or None)
+    click.echo(f"Inferred:  {inference.channel} ({inference.method}, {inference.confidence:.0%})")
+
+    if original_scores:
+        top = max(original_scores, key=lambda s: s["confidence"])
+        if inference.channel == top["channel"]:
+            click.echo("Result: CONFIRMED (AI was right)")
+        else:
+            click.echo(f"Result: CORRECTION (AI said {top['channel']}, actual {inference.channel})")
+
+    db = FeedbackDB(working_dir / "feedback.db")
+    row_id = db.record(
+        processed_path=processed_path,
+        nef_filename=match.nef_filename,
+        nef_path=match.nef_path,
+        match_method=match.match_method,
+        match_confidence=match.confidence,
+        inferred_channel=inference.channel,
+        inference_method=inference.method,
+        inference_confidence=inference.confidence,
+        inference_signals=inference.signals,
+        original_scores=original_scores,
+        tag=tag,
+    )
+    db.close()
+    click.echo(f"Recorded: feedback #{row_id}")
+
+
+@cli.command("record-dir")
+@click.argument("directory", type=click.Path(exists=True, file_okay=False))
+@click.option("--tag", default=None, help="Run tag (matches ingest/score tag)")
+def record_dir(directory: str, tag: str | None):
+    """Record feedback for all PSD/TIFF files in a directory."""
+    from .matcher import load_manifest, load_scores, match_to_nef, get_original_scores, WATCHED_EXTENSIONS
+    from .inferrer import infer_channel
+    from .feedback_db import FeedbackDB
+
+    working_dir = _resolve_working_dir()
+    manifest_path = working_dir / tagged_filename("manifest.json", tag)
+    scores_path = working_dir / tagged_filename("scores.json", tag)
+
+    if not manifest_path.exists():
+        click.echo(f"Error: manifest not found: {manifest_path}", err=True)
+        sys.exit(1)
+    if not scores_path.exists():
+        click.echo(f"Error: scores not found: {scores_path}", err=True)
+        sys.exit(1)
+
+    manifest = load_manifest(manifest_path)
+    scores_data = load_scores(scores_path)
+    db = FeedbackDB(working_dir / "feedback.db")
+
+    dir_path = Path(directory).resolve()
+    files = [
+        f for f in dir_path.iterdir()
+        if f.is_file() and f.suffix.lower() in WATCHED_EXTENSIONS and not f.name.startswith(".")
+    ]
+
+    if not files:
+        click.echo(f"No PSD/TIFF files found in {dir_path}")
+        db.close()
+        return
+
+    click.echo(f"Scanning {len(files)} files in {dir_path.name}/")
+    confirmed = 0
+    corrected = 0
+    unmatched = 0
+
+    for f in sorted(files):
+        match = match_to_nef(f, manifest)
+        original_scores = []
+        if match.nef_filename:
+            original_scores = get_original_scores(match.nef_filename, scores_data)
+
+        inference = infer_channel(f, original_scores or None)
+
+        is_conf = None
+        if original_scores and inference.channel != "unknown":
+            top = max(original_scores, key=lambda s: s["confidence"])
+            is_conf = inference.channel == top["channel"]
+
+        status = "?" if is_conf is None else ("ok" if is_conf else "CORRECTED")
+        if is_conf is True:
+            confirmed += 1
+        elif is_conf is False:
+            corrected += 1
+        else:
+            unmatched += 1
+
+        nef_str = match.nef_filename or "no match"
+        click.echo(f"  {f.name} -> {nef_str} -> {inference.channel} [{status}]")
+
+        db.record(
+            processed_path=f,
+            nef_filename=match.nef_filename,
+            nef_path=match.nef_path,
+            match_method=match.match_method,
+            match_confidence=match.confidence,
+            inferred_channel=inference.channel,
+            inference_method=inference.method,
+            inference_confidence=inference.confidence,
+            inference_signals=inference.signals,
+            original_scores=original_scores,
+            tag=tag,
+        )
+
+    db.close()
+    click.echo(f"\nRecorded {len(files)} entries: {confirmed} confirmed, {corrected} corrected, {unmatched} unmatched")
+
+
+@cli.command()
+@click.option("--tag", default=None, help="Filter by run tag")
+@click.option("--summary", "mode", flag_value="summary", help="Show aggregated channel stats")
+@click.option("--accuracy", "mode", flag_value="accuracy", help="Show AI accuracy metrics")
+@click.option("--recent", "mode", flag_value="recent", default=True, help="Show recent entries (default)")
+@click.option("--limit", default=20, help="Number of recent entries to show")
+def feedback(tag: str | None, mode: str, limit: int):
+    """Query the feedback database.
+
+    Shows recent feedback entries by default. Use --summary for aggregated
+    channel stats, or --accuracy for the AI learning curve metric.
+    """
+    from .feedback_db import FeedbackDB
+
+    working_dir = _resolve_working_dir()
+    db_path = working_dir / "feedback.db"
+
+    if not db_path.exists():
+        click.echo("No feedback recorded yet. Run 'bridge-assist record' first.")
+        return
+
+    db = FeedbackDB(db_path)
+
+    if mode == "summary":
+        data = db.summary(tag=tag)
+        click.echo(f"Feedback summary ({data['total']} total entries)")
+        if tag:
+            click.echo(f"Tag: {tag}")
+        click.echo()
+        click.echo(f"{'Channel':<20} {'Total':>6} {'Confirmed':>10} {'Corrected':>10} {'Unmatched':>10} {'Avg Conf':>9}")
+        click.echo("-" * 75)
+        for ch in data["channels"]:
+            click.echo(
+                f"{ch['inferred_channel']:<20} {ch['total']:>6} "
+                f"{ch['confirmations']:>10} {ch['corrections']:>10} "
+                f"{ch['unmatched']:>10} {ch['avg_confidence']:>8.0%}"
+            )
+
+    elif mode == "accuracy":
+        data = db.accuracy(tag=tag)
+        click.echo("AI Accuracy Report")
+        if tag:
+            click.echo(f"Tag: {tag}")
+        click.echo(f"\nTotal matched: {data['total']}")
+        click.echo(f"Correct:       {data['correct']}")
+        click.echo(f"Incorrect:     {data['incorrect']}")
+        click.echo(f"Accuracy:      {data['accuracy_rate']:.1%}")
+
+        if data["common_corrections"]:
+            click.echo(f"\nCommon corrections (AI said X, actual was Y):")
+            for c in data["common_corrections"]:
+                click.echo(f"  {c['original_top_channel']} -> {c['inferred_channel']} ({c['count']}x)")
+
+    else:
+        entries = db.recent(limit=limit, tag=tag)
+        if not entries:
+            click.echo("No feedback entries found.")
+            db.close()
+            return
+
+        click.echo(f"Recent feedback ({len(entries)} entries)")
+        if tag:
+            click.echo(f"Tag: {tag}")
+        click.echo()
+        for e in entries:
+            ts = e["timestamp"][:16].replace("T", " ")
+            nef = e["nef_filename"] or "no match"
+            conf = "ok" if e["is_confirmation"] == 1 else ("CORRECTED" if e["is_confirmation"] == 0 else "?")
+            name = Path(e["processed_path"]).name
+            click.echo(f"  {ts}  {name} -> {nef} -> {e['inferred_channel']} [{conf}]")
+
+    db.close()
+
+
 def _get_channel_names(taste_path: Path) -> list[str]:
     from .taste_parser import parse_taste_file
     profile = parse_taste_file(taste_path)

@@ -82,6 +82,40 @@ Commands run in order: `ingest` -> `score` -> `route` -> `report`. Each is idemp
 
 Only `score` calls the vision API. `route` and `report` work entirely from cached `scores.json` and `manifest.json`.
 
+### Adobe Bridge Integration
+
+```bash
+# Write XMP sidecar files next to each NEF for Bridge to read
+bridge-assist xmp --tag hawaii-2026
+bridge-assist xmp --dry-run         # Preview without writing
+bridge-assist xmp --clean           # Remove old sidecars before writing
+```
+
+Bridge displays star ratings (from confidence), channel-name labels, and `ba:*` keywords for filtering.
+
+### Taste Engine (Feedback Loop)
+
+Record what you actually process to track AI accuracy over time:
+
+```bash
+# Record feedback for a single processed file
+bridge-assist record /path/to/Photoshop/_FWR5471.psd --tag hawaii-2026
+
+# Batch-record all PSD/TIFF files in a directory
+bridge-assist record-dir /path/to/CaptureOne/ --tag hawaii-2026
+
+# View recent feedback entries
+bridge-assist feedback --tag hawaii-2026
+
+# Aggregated stats per channel (confirmations vs corrections)
+bridge-assist feedback --summary --tag hawaii-2026
+
+# AI accuracy report — the "learning curve" metric
+bridge-assist feedback --accuracy --tag hawaii-2026
+```
+
+The system matches processed files back to source NEFs by filename stem, infers the channel from folder context (Photoshop/ → composite-base, CaptureOne/ → soft-warms, FilmPack/ → bw-monochrome) and file metadata (PSD layer count, color mode, ICC profile), then records whether the AI's original score was confirmed or corrected.
+
 ## Output Structure
 
 ```
@@ -89,6 +123,7 @@ Only `score` calls the vision API. `route` and `report` work entirely from cache
   previews/           # Extracted JPEG previews
   manifest.json       # EXIF data + file metadata
   scores.json         # Vision API scoring results
+  feedback.db         # SQLite feedback database (taste engine)
   routes/
     soft-warms/       # Symlinks to NEFs + warm-graded proof JPEGs
     soft-greens/      # Symlinks to NEFs + green-graded proof JPEGs
@@ -103,9 +138,9 @@ Single-pass multi-channel scoring keeps API costs low. A 100-image shoot costs u
 
 ## Roadmap
 
-**v1 (current):** CLI with taste.md, rawpy preview extraction, vision API scoring, symlink routing, ImageMagick derivatives, Markdown reports.
+**v1:** CLI with taste.md, rawpy preview extraction, vision API scoring, symlink routing, ImageMagick derivatives, Markdown reports, XMP sidecar output for Adobe Bridge.
 
-**v2:** Feedback loop — watches for PSD saves, diffs RAW vs. final output, proposes taste.md amendments. SQLite scoring history for accuracy tracking over time. The taste.md changelog becomes a diffable record of how your creative eye evolves.
+**v2 (in progress):** Taste engine feedback loop — matches processed PSD/TIFF files back to source NEFs, infers channels, records confirmations and corrections in SQLite. Accuracy tracking over time. Next: live file watcher, taste.md amendment proposals.
 
 ## License
 

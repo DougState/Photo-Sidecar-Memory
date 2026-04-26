@@ -27,6 +27,7 @@ api-key-rotation.md
 *.orf
 *.rw2
 *.psd
+*.psb
 
 # Video files
 *.mp4
@@ -88,3 +89,13 @@ api-key-rotation.md
 # NEF preset directories
 NEF/
 Photoshop/
+
+# macOS metadata sidecars (AppleDouble)
+._*
+.DS_Store
+
+# Local IDE workspace files
+*.code-workspace
+
+# Personal Photoshop work directories (not source — sample/scratch data)
+MT88026/

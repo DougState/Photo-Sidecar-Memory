@@ -476,6 +476,185 @@ def _get_channel_names(taste_path: Path) -> list[str]:
     return profile.channel_names()
 
 
+# ---------------------------------------------------------------------------
+# Style mining commands (PSD/PSB corpus -> STYLES.md)
+# ---------------------------------------------------------------------------
+
+@cli.command("mine-styles")
+@click.argument("source_dir", type=click.Path(exists=True, file_okay=False))
+@click.option("--limit", type=int, default=None, help="Cap the number of new files processed (smoke test).")
+@click.option("--no-resume", is_flag=True, help="Re-extract every fingerprint (ignore existing JSONL).")
+@click.option("--skip-thumbs", is_flag=True, help="Skip Phase 3 thumbnail generation.")
+@click.option("--skip-vision", is_flag=True, help="Skip Phase 5 Claude naming pass; produce mechanical-only draft.")
+@click.option("--phase", type=click.Choice(["all", "extract", "chains", "thumbs", "cluster", "name"]), default="all", help="Run only one phase (for re-runs).")
+@click.option("--backend", type=click.Choice(["claude", "openai"]), default="claude", help="Vision API backend (Phase 5 only; openai not yet implemented).")
+@click.option("--api-key", envvar="BRIDGE_ASSIST_API_KEY", default=None, help="Vision API key (or set ANTHROPIC_API_KEY).")
+@click.option("--partial-threshold-mb", type=int, default=1000, help="Files above this size (MB) are recorded as partial — skips layer walk.")
+@click.option("--timeout", type=int, default=120, help="Per-file PSD parse timeout (seconds).")
+def mine_styles_cmd(
+    source_dir: str,
+    limit: int | None,
+    no_resume: bool,
+    skip_thumbs: bool,
+    skip_vision: bool,
+    phase: str,
+    backend: str,
+    api_key: str | None,
+    partial_threshold_mb: int,
+    timeout: int,
+):
+    """Mine styles from a PSD/PSB corpus and produce styles_draft.md.
+
+    Walks SOURCE_DIR, fingerprints every PSD/PSB without decoding pixels,
+    detects iteration chains, clusters fingerprints by mechanical signature,
+    and asks Claude to name each cluster. Output: .bridge-assist/styles/styles_draft.md.
+
+    Re-runnable. Resume-safe. Use --limit for quick smoke tests.
+    """
+    from .style_miner import (
+        mine_styles,
+        phase1_extract,
+        phase2_chains,
+        phase3_thumbs,
+        phase4_cluster,
+        phase5_name,
+    )
+
+    source = Path(source_dir).resolve()
+    working_dir = _resolve_working_dir(source_dir)
+    working_dir.mkdir(parents=True, exist_ok=True)
+    click.echo(f"Source: {source}")
+    click.echo(f"Working: {working_dir}")
+
+    log = lambda msg: click.echo(msg)
+
+    if phase == "all":
+        draft = mine_styles(
+            source,
+            working_dir,
+            resume=not no_resume,
+            limit=limit,
+            skip_thumbs=skip_thumbs,
+            skip_vision=skip_vision,
+            backend=backend,
+            api_key=api_key,
+            log=log,
+        )
+        click.echo(f"\nDraft style library: {draft}")
+        click.echo("Review and edit, then copy to STYLES.md when ready.")
+        return
+
+    if phase == "extract":
+        phase1_extract(
+            source,
+            working_dir,
+            resume=not no_resume,
+            limit=limit,
+            partial_threshold_bytes=partial_threshold_mb * 1_000_000,
+            timeout_seconds=timeout,
+            log=log,
+        )
+    elif phase == "chains":
+        phase2_chains(working_dir, log=log)
+    elif phase == "thumbs":
+        phase3_thumbs(working_dir, log=log)
+    elif phase == "cluster":
+        phase4_cluster(working_dir, log=log)
+    elif phase == "name":
+        phase5_name(
+            working_dir,
+            backend=backend,
+            api_key=api_key,
+            skip_vision=skip_vision,
+            log=log,
+        )
+
+
+@cli.command("styles-report")
+@click.option("--source-dir", type=click.Path(exists=True, file_okay=False), default=None, help="Used only for working-dir resolution; not re-walked.")
+def styles_report_cmd(source_dir: str | None):
+    """Print a one-screen summary of the latest mining run."""
+    import json as _json
+    from .psd_introspect import read_fingerprints_jsonl
+
+    working_dir = _resolve_working_dir(source_dir)
+    styles_dir = working_dir / "styles"
+
+    fps_path = styles_dir / "fingerprints.jsonl"
+    chains_path = styles_dir / "chain_diffs.jsonl"
+    candidates_path = styles_dir / "candidate_styles.json"
+    draft_path = styles_dir / "styles_draft.md"
+
+    if not fps_path.exists():
+        click.echo(f"No fingerprints found in {styles_dir}. Run 'bridge-assist mine-styles SOURCE' first.")
+        return
+
+    fps = read_fingerprints_jsonl(fps_path)
+    partials = sum(1 for f in fps if f.partial_introspection)
+    errors = sum(1 for f in fps if f.error)
+
+    click.echo(f"Working directory: {working_dir}")
+    click.echo()
+    click.echo(f"Fingerprints: {len(fps)} total ({partials} partial, {errors} with errors)")
+
+    by_tier: dict[str, int] = {}
+    for f in fps:
+        by_tier[f.tier] = by_tier.get(f.tier, 0) + 1
+    click.echo("Tier breakdown:")
+    for tier, n in sorted(by_tier.items(), key=lambda x: -x[1]):
+        click.echo(f"  {tier:<20} {n}")
+
+    if chains_path.exists():
+        n_chains = sum(1 for _ in open(chains_path))
+        click.echo(f"\nChains: {n_chains}")
+
+    if candidates_path.exists():
+        cand = _json.loads(candidates_path.read_text())
+        click.echo(f"\nClustering: {cand.get('algorithm', 'unknown')}")
+        for c in cand.get("clusters", []):
+            label = c.get("label") or f"cluster-{c['cluster_id']}"
+            top = ", ".join(f["name"] for f in c.get("feature_summary", {}).get("top_features", [])[:4])
+            click.echo(f"  #{c['cluster_id']:>3} size={c['size']:>4}  {label:<30} top: {top}")
+
+    if draft_path.exists():
+        click.echo(f"\nDraft library: {draft_path}")
+
+
+@cli.command("styles-inspect")
+@click.argument("cluster_id", type=int)
+@click.option("--source-dir", type=click.Path(exists=True, file_okay=False), default=None)
+@click.option("--limit", type=int, default=20, help="Max members to print.")
+def styles_inspect_cmd(cluster_id: int, source_dir: str | None, limit: int):
+    """Show the members of a single cluster from the latest mining run."""
+    import json as _json
+
+    working_dir = _resolve_working_dir(source_dir)
+    candidates_path = working_dir / "styles" / "candidate_styles.json"
+
+    if not candidates_path.exists():
+        click.echo(f"No candidate_styles.json — run 'bridge-assist mine-styles SOURCE' first.")
+        sys.exit(1)
+
+    cand = _json.loads(candidates_path.read_text())
+    target = next((c for c in cand.get("clusters", []) if c["cluster_id"] == cluster_id), None)
+    if not target:
+        click.echo(f"Cluster {cluster_id} not found. Available: {[c['cluster_id'] for c in cand.get('clusters', [])]}")
+        sys.exit(1)
+
+    click.echo(f"Cluster {cluster_id}  size={target['size']}  label={target.get('label') or '(unnamed)'}")
+    fs = target.get("feature_summary", {})
+    click.echo(f"  year_range: {fs.get('year_range')}")
+    click.echo(f"  avg_layer_count: {fs.get('avg_layer_count')}")
+    click.echo(f"  tier_breakdown: {fs.get('tier_breakdown')}")
+    click.echo(f"  top features:")
+    for f in fs.get("top_features", [])[:10]:
+        click.echo(f"    - {f['name']:<30} {f['weight']}")
+
+    click.echo(f"\nMembers ({min(limit, len(target['member_paths']))} of {len(target['member_paths'])}):")
+    for path in target["member_paths"][:limit]:
+        click.echo(f"  {path}")
+
+
 def main():
     cli()
 

@@ -1,5 +1,53 @@
 # Changelog
 
+## V2 — "Taste Engine" (Approach B) — in progress
+
+> Ref: `gstack-plan.md` line 67 — Approach B: feedback loop + taste history
+
+Feedback loop for processed PSDs/TIFFs and a style discovery pipeline that
+reverse-engineers output styles from a corpus of edited Photoshop files.
+`taste.md` keeps defining input routing (where a NEF should go); the new
+`STYLES.md` defines output styles (how the image is actually edited).
+
+### What shipped
+
+- **Taste engine Phase 1** — `record-feedback` matches processed PSD/TIFF files
+  back to source NEFs via filename stem (strips Bridge/edit suffixes), reads
+  PSD metadata without decoding pixels, infers the channel from layer counts,
+  color mode, and metadata signals, and writes confirmations + corrections to
+  SQLite (`feedback.db`). Includes `feedback-stats` for accuracy tracking.
+- **XMP sidecar workflow** — `xmp` writes `.xmp` files next to each NEF so
+  Adobe Bridge displays star ratings (from confidence), channel names as
+  labels, and `ba:*` keywords for filtering. `elimstat-product` excluded from
+  Bridge output (separate workflow).
+- **Style mining** — `mine-styles` walks a folder of finished and in-progress
+  PSD/PSB files, fingerprints each one mechanically (layer trees, blend modes,
+  adjustment kinds, masks, smart objects, text), groups iteration chains
+  save-to-save, clusters similar fingerprints (HDBSCAN with KMeans fallback),
+  and asks Claude to name each cluster from thumbnails plus the mechanical
+  signal. Produces a draft `STYLES.md` for human review.
+- **`psd_introspect` module** — shared lazy PSD reader used by both the
+  inferrer and the style miner. Handles partial introspection for files
+  larger than 1GB (basic metadata only, no layer walk) so multi-GB PSBs do
+  not OOM the process. Per-file timeout (default 120s) and resumable
+  fingerprint extraction via JSONL cache.
+- **`mine-styles`, `styles-report`, `styles-inspect`** — three new CLI
+  commands. Resume-safe: interrupt at any time and re-run.
+
+### Commits (so far)
+
+- `2f4399d` Add taste engine Phase 1: feedback recording from processed PSD/TIFF files
+- `199eede` Document XMP sidecar and taste engine CLI commands in README
+
+### What's next (V2 continued)
+
+- Live file watcher for PSD saves (auto-record feedback on save)
+- `taste.md` amendment proposals from feedback drift
+- Promote `styles_draft.md` → `STYLES.md` and wire it into the routing prompt
+- Vision-naming refinement (per-cluster thumb count, prompt iteration)
+
+---
+
 ## V1 — "Weekend CLI" (Approach A) ✓
 
 > Ref: `gstack-plan.md` line 57 — Approach A: "Weekend CLI" (Minimal Viable)

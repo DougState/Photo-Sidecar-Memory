@@ -116,6 +116,31 @@ bridge-assist feedback --accuracy --tag hawaii-2026
 
 The system matches processed files back to source NEFs by filename stem, infers the channel from folder context (Photoshop/ → composite-base, CaptureOne/ → soft-warms, FilmPack/ → bw-monochrome) and file metadata (PSD layer count, color mode, ICC profile), then records whether the AI's original score was confirmed or corrected.
 
+### Style Mining (Discover Output Styles from Photoshop History)
+
+`taste.md` defines *input routing* (where a NEF should go). `STYLES.md` defines *output styles* (how an image is actually edited). The `mine-styles` command derives the latter by walking a folder of finished and in-progress PSD/PSB files, fingerprinting each one mechanically (layer trees, blend modes, adjustment kinds, masks, smart objects, text), grouping iteration chains save-to-save, clustering similar fingerprints, and asking Claude to name each cluster from thumbnails plus the mechanical signal.
+
+```bash
+# Walk a corpus of PSDs/PSBs and produce a draft style library
+bridge-assist mine-styles "/Volumes/Mauna Kea/PS Works"
+
+# Skip thumbs + vision for a fast mechanical-only pass (no API spend)
+bridge-assist mine-styles --skip-thumbs --skip-vision "/Volumes/Mauna Kea/PS Works"
+
+# Limit for smoke-testing
+bridge-assist mine-styles --limit 25 --skip-vision "/Volumes/Mauna Kea/PS Works"
+
+# Inspect cluster sizes, top features, and the draft path
+bridge-assist styles-report
+
+# Drill into a single cluster (sources + chain diffs)
+bridge-assist styles-inspect 3
+```
+
+Output lands in `.bridge-assist/styles/` (gitignored): `fingerprints.jsonl`, `chain_diffs.jsonl`, `thumbs/`, `candidate_styles.json`, `styles_draft.md`. Review the draft, edit cluster names/intents/signals/example outputs by hand, then promote the file to project-root `STYLES.md` and commit. The pipeline is resume-safe — interrupt at any time and re-run.
+
+Files larger than 1GB are recorded with partial metadata only (path/size/mtime/tier/chain) and skipped from the layer walk to avoid OOM on multi-GB PSBs. They still participate in chain detection.
+
 ## Output Structure
 
 ```
@@ -130,6 +155,12 @@ The system matches processed files back to source NEFs by filename stem, infers 
     composite-base/   # Symlinks to NEFs + full-res TIF proofs
     instagram/        # Symlinks to NEFs + 1080px cropped JPEGs
     ...
+  styles/             # Style mining outputs (mine-styles)
+    fingerprints.jsonl
+    chain_diffs.jsonl
+    thumbs/
+    candidate_styles.json
+    styles_draft.md   # Review and promote to project-root STYLES.md
 ```
 
 ## Cost
@@ -140,7 +171,7 @@ Single-pass multi-channel scoring keeps API costs low. A 100-image shoot costs u
 
 **v1:** CLI with taste.md, rawpy preview extraction, vision API scoring, symlink routing, ImageMagick derivatives, Markdown reports, XMP sidecar output for Adobe Bridge.
 
-**v2 (in progress):** Taste engine feedback loop — matches processed PSD/TIFF files back to source NEFs, infers channels, records confirmations and corrections in SQLite. Accuracy tracking over time. Next: live file watcher, taste.md amendment proposals.
+**v2 (in progress):** Taste engine feedback loop — matches processed PSD/TIFF files back to source NEFs, infers channels, records confirmations and corrections in SQLite. Accuracy tracking over time. Style mining — discovers output styles from a corpus of edited PSDs/PSBs (`mine-styles`) and produces a draft `STYLES.md`. Next: live file watcher, taste.md amendment proposals, vision-naming refinement.
 
 ## License
 

@@ -55,23 +55,18 @@ def _metadata_signal(processed_path: Path) -> dict:
 
 
 def _read_psd_metadata(path: Path) -> dict:
-    """Extract metadata from PSD/PSB without loading pixel data."""
-    signals: dict = {}
+    """Extract metadata from PSD/PSB without loading pixel data.
+
+    Delegates to `psd_introspect.read_basic_metadata` so the inferrer and the
+    style miner share a single PSD-reading code path.
+    """
     try:
-        from psd_tools import PSDImage
-        psd = PSDImage.open(str(path))
-        signals["color_mode"] = str(psd.color_mode).lower()
-        signals["layer_count"] = len(list(psd.descendants()))
-        signals["width"] = psd.width
-        signals["height"] = psd.height
-        channels = getattr(psd, "channels", None)
-        if channels is not None:
-            signals["channel_count"] = channels
+        from .psd_introspect import read_basic_metadata
+        return read_basic_metadata(path)
     except ImportError:
-        pass
+        return {}
     except Exception:
-        pass
-    return signals
+        return {}
 
 
 def _read_tiff_metadata(path: Path) -> dict:

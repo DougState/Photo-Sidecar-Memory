@@ -5,6 +5,7 @@ __pycache__/
 *.egg-info/
 .bridge-assist/
 api-key-rotation.md
+*.code-workspace
 
 # Image files
 *.jpg
@@ -27,6 +28,9 @@ api-key-rotation.md
 *.orf
 *.rw2
 *.psd
+*.psb
+*.mpt
+._*
 
 # Video files
 *.mp4

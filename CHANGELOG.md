@@ -18,8 +18,7 @@ reverse-engineers output styles from a corpus of edited Photoshop files.
   SQLite (`feedback.db`). Includes `feedback-stats` for accuracy tracking.
 - **XMP sidecar workflow** — `xmp` writes `.xmp` files next to each NEF so
   Adobe Bridge displays star ratings (from confidence), channel names as
-  labels, and `ba:*` keywords for filtering. `elimstat-product` excluded from
-  Bridge output (separate workflow).
+  labels, and `ba:*` keywords for filtering.
 - **Style mining** — `mine-styles` walks a folder of finished and in-progress
   PSD/PSB files, fingerprints each one mechanically (layer trees, blend modes,
   adjustment kinds, masks, smart objects, text), groups iteration chains
@@ -68,8 +67,6 @@ and XMP sidecar-based Bridge integration. Five commands: `ingest`, `score`,
 - **XMP sidecar output** — Writes `.xmp` files next to each NEF so Adobe
   Bridge displays star ratings (from confidence), channel-name labels, and
   structured `ba:*` keywords for filtering
-- **elimstat-product excluded** — Product shoot channel filtered from Bridge
-  output (separate workflow)
 
 ### Commits
 
@@ -81,7 +78,7 @@ and XMP sidecar-based Bridge integration. Five commands: `ingest`, `score`,
 - `2dbd3c9` Add per-run tag support and per-channel report layout
 - `0fafe74` Use exiftool for gold-standard EXIF extraction from NEF files
 - `8eaeff7` Add XMP sidecar command for Adobe Bridge integration
-- `9f7c0ff` Use channel names as XMP labels, drop elimstat-product from Bridge output
+- `9f7c0ff` Use channel names as XMP labels
 
 ### Status
 

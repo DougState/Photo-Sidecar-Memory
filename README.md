@@ -26,7 +26,6 @@ Bridge Assist routes to channels defined in `taste.md`. The default profile incl
 | **soft-warms** | Artistic warm grade via NX-D presets (Tuscany 1968, France 1968). TIF for print, sRGB JPG for web. | Rich tonal range, warm natural light, earthy tones, foreground-to-background depth |
 | **soft-greens** | Natural green-toned treatment. Garden and shade photography. | Lush vegetation, garden scenes, green foliage dominant, cooler palette |
 | **composite-base** | Base layer for multi-layer Photoshop PSB/PSD composites. | Good subject-background separation, clean edges, narrative possibilities |
-| **elimstat-product** | E-commerce product photography for Elimstat.com. Clean, neutral, accurate. | Product isolation, even lighting, sharp detail, neutral color |
 | **bw-monochrome** | Black and white via D800 MONOCHROME Picture Controls (1960s vintage, Severe high-contrast). | Strong shapes, dramatic contrast, form over color |
 | **instagram** | Social media, square or 4:5 crop. | Visual impact at small size, survives aggressive cropping, scroll-stopping |
 

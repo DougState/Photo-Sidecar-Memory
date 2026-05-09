@@ -137,25 +137,6 @@ def _transform_composite_base(preview_path: Path, output_dir: Path, stem: str) -
     return [output] if success and output.exists() else []
 
 
-def _transform_elimstat_product(preview_path: Path, output_dir: Path, stem: str) -> list[Path]:
-    """Elimstat product: multiple sizes, sRGB, neutral, optimized JPEG."""
-    outputs = []
-    for width in [2400, 1200, 600]:
-        output = output_dir / f"{stem}_elimstat_{width}px.jpg"
-        success = _run_magick([
-            str(preview_path),
-            "-resize", f"{width}x{width}>",  # Shrink only, preserve aspect
-            "-colorspace", "sRGB",
-            "-quality", "85",
-            "-strip",  # Remove metadata for web
-            str(output),
-        ])
-        if success and output.exists():
-            outputs.append(output)
-
-    return outputs
-
-
 def _transform_bw_monochrome(preview_path: Path, output_dir: Path, stem: str) -> list[Path]:
     """B&W monochrome proof: grayscale conversion from preview."""
     outputs = []
@@ -194,7 +175,6 @@ CHANNEL_TRANSFORMS = {
     "soft-greens": _transform_soft_greens,
     "instagram": _transform_instagram,
     "composite-base": _transform_composite_base,
-    "elimstat-product": _transform_elimstat_product,
     "bw-monochrome": _transform_bw_monochrome,
 }
 

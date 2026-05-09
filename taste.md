@@ -24,14 +24,6 @@
 - Output: Full resolution TIF, preserve all detail, no color correction. Routed to Photoshop/[project]/ directory structure.
 - Confidence threshold: 0.7
 
-### elimstat-product
-- Intent: Product photography for Elimstat.com e-commerce. Clean, neutral, accurate color. Minimal post-processing. NX-D preset corrects for lighting conditions only — no artistic treatment.
-- Signals: Product isolation on clean background. Even, diffused lighting. Sharp detail visibility across product surface. Neutral color rendition. Macro or close-up product detail. Indoor studio or controlled lighting setup.
-- NXD preset family: NXD Elimstat (Rubber Mats for neutral daylight, Indoor Lighting for tungsten correction)
-- NXD signature: Rubber Mats = all zeros (neutral), 6500K daylight WB. Indoor Lighting = Contrast -100, Sat +100, Hue -100 compensating for warm tungsten, Color Temp ~3848K.
-- Output: sRGB, multiple sizes (2400px, 1200px, 600px), web-optimized JPEG quality 85
-- Confidence threshold: 0.65
-
 ### bw-monochrome
 - Intent: Black and white treatment via D800 Picture Control presets (MONOCHROME-1960s for vintage grain/tone, MONOCHROME-Severe for high contrast). Dramatic, graphic images.
 - Signals: Strong shapes, geometric composition, dramatic light-to-shadow contrast. Scenes where color is secondary to form, texture, or mood. Silhouettes, high contrast natural light, architectural elements, strong leading lines.
@@ -48,7 +40,6 @@
 ## Global Preferences
 - Favor compositions with strong foreground-to-background depth
 - Prefer images where the subject fills 40-60% of the frame
-- Weight macro detail shots higher for elimstat-product channel
 - Penalize obvious motion blur unless artistic intent is clear
 - Images can route to multiple channels (a woodland scene might be both soft-warms and composite-base)
 - When scoring for soft-warms vs soft-greens, key differentiator is dominant color palette: warm earth tones → soft-warms, dominant greens/cool vegetation → soft-greens

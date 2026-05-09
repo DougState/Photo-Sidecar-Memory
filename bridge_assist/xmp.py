@@ -19,7 +19,7 @@ CHANNEL_TO_LABEL = {
     "instagram": "instagram",
 }
 
-SKIP_CHANNELS = {"elimstat-product"}
+SKIP_CHANNELS: set[str] = set()
 
 XMP_TEMPLATE = """\
 <?xpacket begin="\ufeff" id="W5M0MpCehiHzreSzNTczkc9d"?>

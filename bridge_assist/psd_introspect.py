@@ -148,7 +148,7 @@ def _adjustment_label(kind: str) -> str | None:
 def _opacity_bucket(opacity: int | None) -> str:
     if opacity is None:
         return "unknown"
-    pct = (opacity / 255.0) * 100 if opacity > 1 else opacity * 100
+    pct = (opacity / 255.0) * 100 if isinstance(opacity, int) else opacity * 100
     if pct >= 99.5:
         return "100"
     if pct >= 70:
@@ -212,6 +212,14 @@ def _tree_signature(layer, depth: int = 0, max_depth: int = 5) -> str:
     """
     kind = _normalize_kind(getattr(layer, "kind", ""))
     sigil = KIND_SIGIL.get(kind, "?")
+    if kind == "root":
+        children = []
+        try:
+            for child in layer:
+                children.append(_tree_signature(child, depth, max_depth))
+        except Exception:
+            return sigil
+        return ",".join(children) if children else sigil
     if kind != "group" or depth >= max_depth:
         return sigil
     children = []

@@ -44,8 +44,8 @@ Each channel references specific Nikon Capture NX-D preset families included in 
 Requires Python 3.11+ and [ImageMagick](https://imagemagick.org/).
 
 ```bash
-git clone https://github.com/DougState/AI-Photo-Sort.git
-cd AI-Photo-Sort
+git clone https://github.com/DougState/Photo-Sidecar-Memory.git
+cd Photo-Sidecar-Memory
 pip install -r requirements.txt
 ```
 

@@ -13,3 +13,23 @@ completion of each meaningful unit of work; do not rewrite history.
 - Seeded feature_list.json from SESSION.md "Next Actions" (8 features, 0 passing)
 - Smoke test (./init.sh) pending verification on first real session start
 - Next action per SESSION.md: review .bridge-assist/styles/styles_draft.md and promote to STYLES.md
+
+[2026-05-21 15:38] Committed harness scaffolding
+- Commit a18b20f "chore: bootstrap long-running agent harness on this branch" pushed to origin/feature/taste-discovery-ps-works
+- 7 files changed, 621 insertions, 2 deletions
+
+[2026-05-21 15:46] Session-start ritual: all checks green
+- ./init.sh OK: tooling, .venv 3.13.12, deps, both API keys, harness files
+- Branch clean, up-to-date with origin
+- 8 failing / 0 passing / 0 blocked
+
+[2026-05-21 15:55] Merge cursor/* branches + main into feature; FF main
+- Merged cursor/core-application-issues-7e60 (numpy + scikit-learn deps, mine-styles flag plumbing, file-handle leak fix). Duplicate "Remove elimstat-product channel" commit collapsed cleanly.
+- Merged origin/cursor/psd-tree-and-opacity-923f (_tree_signature PSDImage-root recursion; _opacity_bucket int-vs-float fix)
+- Installed pytest into .venv (was missing); tests/ 16/16 pass in 10.2s
+- Discovered main had 2 divergent commits (DECISIONS.md + parallel elimstat removal); user picked option A: merge main into feature, then FF main
+- Merged main into feature, resolved .gitignore conflict (kept feature's organized sections, added *.mpt; deduped .DS_Store and *.code-workspace from auto-merge)
+- DECISIONS.md now on feature (1 entry: public-mirror strategy). DOCS-001 description updated to "extend" rather than "create"
+- Added DEVENV-001 (declare pytest in pyproject.toml) — feature count: 9 total, all failing
+- 16/16 tests still pass post-main-merge
+- Next: commit on feature, FF main, optionally push

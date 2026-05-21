@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "last_updated": "2026-05-21",
   "branch": "feature/taste-discovery-ps-works",
+  "merged_branches": ["cursor/core-application-issues-7e60", "cursor/psd-tree-and-opacity-923f", "main"],
   "multi_agent_mode": false,
   "categories": {
     "styles": "Style mining + STYLES.md curation (taste discovery from PSD/PSB corpus)",
@@ -80,17 +81,26 @@
     {
       "id": "DOCS-001",
       "category": "docs",
-      "name": "Create DECISIONS.md (consolidate architectural rationale)",
-      "description": "Architectural decisions are scattered across gstack-plan.md, docs/, and conversation history. Consolidate into a single DECISIONS.md: why single-call multi-channel scoring, why Claude > OpenAI for taste scoring, why symlinks (not copies), why per-channel report layout, why page-scoped XMP labels.",
+      "name": "Extend DECISIONS.md (consolidate architectural rationale)",
+      "description": "File now exists at project root with one entry (public-mirror strategy, 2026-05-09, format: Decision / Why / Rejected alternatives / Consequences / Files-that-must-stay-out). Backfill the rest: single-call multi-channel scoring, Claude > OpenAI for taste scoring, symlinks not copies, per-channel report layout, page-scoped XMP labels, working-dir-at-cwd, size-guard threshold for >1GB PSBs.",
       "status": "failing",
       "file": "DECISIONS.md",
-      "test_criteria": "DECISIONS.md exists at project root, contains at least 5 numbered decisions, each with Context / Decision / Consequences sections, and is linked from README.md."
+      "test_criteria": "DECISIONS.md contains at least 5 numbered/dated decisions, each with Decision / Why / Consequences sections, and is linked from README.md."
+    },
+    {
+      "id": "DEVENV-001",
+      "category": "tests",
+      "name": "Declare pytest as a dev dependency in pyproject.toml",
+      "description": "pytest is not in pyproject.toml or requirements.txt. Was installed manually into .venv on 2026-05-21 to run the existing 16-test suite. Add a `[project.optional-dependencies] dev = [\"pytest>=8\"]` block and document `pip install -e .[dev]` in README/CLAUDE.md.",
+      "status": "failing",
+      "file": "pyproject.toml",
+      "test_criteria": "Fresh venv created via `python3 -m venv .venv && .venv/bin/pip install -e .[dev]` can run `python -m pytest tests/ -v` without additional installs."
     }
   ],
   "summary": {
-    "total": 8,
+    "total": 9,
     "passing": 0,
-    "failing": 8,
+    "failing": 9,
     "blocked": 0
   }
 }

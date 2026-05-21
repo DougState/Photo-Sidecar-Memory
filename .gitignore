@@ -1,4 +1,3 @@
-.DS_Store
 *.zip
 __pycache__/
 .venv/
@@ -28,6 +27,7 @@ api-key-rotation.md
 *.rw2
 *.psd
 *.psb
+*.mpt
 
 # Video files
 *.mp4

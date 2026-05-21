@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(claude-progress.txt)",
+      "Read(feature_list.json)",
+      "Read(SESSION.md)",
+      "Read(docs/history/**)",
+      "Bash(./init.sh)",
+      "Bash(cat claude-progress.txt)",
+      "Bash(cat feature_list.json:*)",
+      "Bash(jq:*)",
+      "Bash(git status)",
+      "Bash(git log:*)",
+      "Bash(git branch:*)"
+    ]
+  }
+}

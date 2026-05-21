@@ -1,0 +1,15 @@
+Bridge-Assist — Session Progress Log
+=====================================
+
+Format: each entry is a session/task block. Newest at the bottom. Append on
+completion of each meaningful unit of work; do not rewrite history.
+
+---
+
+[2026-05-21 15:38] Harness initialization
+- Branch: feature/taste-discovery-ps-works
+- Created init.sh, claude-progress.txt, feature_list.json, docs/history/, .claude/settings.json
+- Prepended harness section to CLAUDE.md; preserved existing skill-routing section
+- Seeded feature_list.json from SESSION.md "Next Actions" (8 features, 0 passing)
+- Smoke test (./init.sh) pending verification on first real session start
+- Next action per SESSION.md: review .bridge-assist/styles/styles_draft.md and promote to STYLES.md

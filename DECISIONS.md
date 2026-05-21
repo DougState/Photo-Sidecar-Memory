@@ -1,6 +1,55 @@
 # DECISIONS.md
 
-> Architectural and operational decisions for bridge-assist. Each entry records *what* was decided, *why*, and *what was rejected*. Append-only — supersede entries with a new entry, do not edit history.
+> Architectural and operational decisions for bridge-assist. Each entry records *what* was decided, *why*, and *what was rejected*. Append-only — supersede entries with a new entry, do not edit history. Newest first.
+
+---
+
+## 2026-05-21 — Public mirror strip list: expand for taste-engine, style-mining, and agent-harness landing on `main`
+
+**Supersedes:** the strip list in the 2026-05-09 entry (the strategy itself is unchanged; only the strip list grows).
+
+**Context:** On 2026-05-21, `feature/taste-discovery-ps-works` was fast-forwarded onto `main`, bringing the taste engine, the PSD style-mining pipeline, the long-running agent harness (`init.sh`, `claude-progress.txt`, `feature_list.json`, `.claude/`, `docs/history/`), `SESSION.md`, `CHANGELOG.md`, and an HTML-first output-policy note (`CLAUDE.html-example.md`). The 2026-05-09 entry had already anticipated that `SESSION.md` and `CHANGELOG.md` would need stripping once they landed on `main`. They have.
+
+**Decision — full strip list (authoritative as of 2026-05-21):**
+
+| Path | Reason |
+|------|--------|
+| `CLAUDE.md` | Agent rules and skill routing — internal workflow |
+| `CLAUDE.html-example.md` | HTML-first output-policy note for AI agents |
+| `SESSION.md` | Long-form working state (current branch, in-flight work) |
+| `CHANGELOG.md` | Internal change log |
+| `DECISIONS.md` | This file — captures internal mirror strategy |
+| `gstack-plan.md` | Internal design doc |
+| `data_types.csv` | Unused reference |
+| `init.sh` | Harness setup script — references `SESSION.md` and `feature_list.json`, would fail on a fresh public clone |
+| `claude-progress.txt` | Per-session activity log |
+| `feature_list.json` | Harness feature tracker |
+| `.claude/` (directory) | Claude IDE settings (auto-allow permissions for harness reads) |
+| `docs/SESSION-Sample.md` | SESSION.md template — meta-doc for the harness pattern |
+| `docs/history/` (directory) | Per-session notes — harness scaffolding |
+
+**Kept on public mirror:**
+- All of `bridge_assist/` (including the new `feedback_db.py`, `inferrer.py`, `matcher.py`, `psd_introspect.py`, `style_miner.py`).
+- All of `NXD Presets/` (the full preset library).
+- `tests/test_taste_discovery.py`.
+- `docs/OpenAI_Anthropic_Diffs.md`, `docs/weights.md` (publishable analyses).
+- `README.md` (with the clone-URL rewrite), `taste.md`, `pyproject.toml`, `requirements.txt`, `.gitignore`.
+
+**Why expand:**
+- Harness files (`init.sh`, `claude-progress.txt`, `feature_list.json`, `.claude/`, `docs/history/`) are personal-workflow scaffolding for long-running agent sessions, not part of the product. `init.sh` in particular would fail loudly on a fresh clone of the public repo because it expects `SESSION.md` and `feature_list.json` to exist.
+- `CLAUDE.html-example.md` records an opinionated output-format preference for AI agents working in this codebase. Not interesting to public consumers.
+- `docs/SESSION-Sample.md` is a template explaining how to use the harness — meta-doc for the workflow.
+
+**Mechanism reminder (unchanged from 2026-05-09):**
+1. `git checkout -B public-mirror main` — recreate the branch from the current `main` HEAD.
+2. `git rm` every path in the strip list above.
+3. Rewrite the README clone URL from `AI-Photo-Sort` to `Photo-Sidecar-Memory` (currently README.md lines 47-48).
+4. `git commit -m "Sanitize for public mirror"`.
+5. `git push public public-mirror:main --force`.
+
+**Consequences:**
+- Sanitization commit on `public-mirror` now removes 13 paths (was 4 in the 2026-05-09 entry).
+- This entry is the source of truth. Any new internal file landing on `main` should trigger another superseding entry that reproduces the full updated strip list — do not chase changes through entry diffs.
 
 ---
 

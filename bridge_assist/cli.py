@@ -538,6 +538,8 @@ def mine_styles_cmd(
             skip_vision=skip_vision,
             backend=backend,
             api_key=api_key,
+            partial_threshold_bytes=partial_threshold_mb * 1_000_000,
+            timeout_seconds=timeout,
             log=log,
         )
         click.echo(f"\nDraft style library: {draft}")
@@ -605,7 +607,8 @@ def styles_report_cmd(source_dir: str | None):
         click.echo(f"  {tier:<20} {n}")
 
     if chains_path.exists():
-        n_chains = sum(1 for _ in open(chains_path))
+        with open(chains_path) as f:
+            n_chains = sum(1 for _ in f)
         click.echo(f"\nChains: {n_chains}")
 
     if candidates_path.exists():

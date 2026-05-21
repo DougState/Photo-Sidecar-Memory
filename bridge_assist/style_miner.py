@@ -942,6 +942,8 @@ def mine_styles(
     skip_vision: bool = False,
     backend: str = "claude",
     api_key: str | None = None,
+    partial_threshold_bytes: int = 1_000_000_000,
+    timeout_seconds: int = 120,
     log: callable | None = None,
 ) -> Path:
     """Run all five mining phases end-to-end.
@@ -952,7 +954,7 @@ def mine_styles(
     (working_dir / "styles").mkdir(parents=True, exist_ok=True)
 
     log("=== Phase 1: extract fingerprints ===")
-    phase1_extract(source, working_dir, resume=resume, limit=limit, log=log)
+    phase1_extract(source, working_dir, resume=resume, limit=limit, partial_threshold_bytes=partial_threshold_bytes, timeout_seconds=timeout_seconds, log=log)
 
     log("=== Phase 2: detect chains + diff ===")
     phase2_chains(working_dir, log=log)
